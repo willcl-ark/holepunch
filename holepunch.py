@@ -192,8 +192,10 @@ class TcpPuncher:
                 f"timeout={CONNECT_TIMEOUT:.3f}s; "
                 f"listener={self.listener_status()}"
             )
-            if self.debug or self.connect_attempt == 1:
+            if self.debug:
                 self.log_event("TCP holepunch", message)
+            elif self.connect_attempt == 1:
+                self.log_event("TCP holepunch", "listening and retrying")
         except OSError as err:
             self.debug_event(
                 "TCP holepunch",
