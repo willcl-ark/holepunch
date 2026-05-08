@@ -41,7 +41,7 @@ There are three components:
 
 - `bitcoind`: runs normal Bitcoin P2P logic and imports connected TCP sockets
   from a local Unix domain socket.
-- `btcpunchd`: a local sidecar that performs NAT traversal and passes
+- `natcatd`: a local sidecar that performs NAT traversal and passes
   successful connected TCP sockets to `bitcoind`.
 - `rendezvousd`: a public coordination service used by sidecars to exchange
   public TCP candidates and synchronize simultaneous-open attempts.
@@ -218,14 +218,14 @@ On shutdown, Bitcoin Core:
 
 ### Configuration
 
-Example `btcpunchd` configuration:
+Example `natcatd` configuration:
 
 ```toml
 network = "main"
 core_import_socket = "/home/user/.bitcoin/import-peer.sock"
 rendezvous = "rendezvous.fish.foo:443"
 stun_tcp = "stun.fish.foo:3478"
-identity_key = "/home/user/.btcpunchd/identity.key"
+identity_key = "/home/user/.natcatd/identity.key"
 punch_port = 8333
 connect_timeout_ms = 5000
 ```
@@ -461,7 +461,7 @@ stateDiagram-v2
 
 ### Commit 5: Sidecar MVP
 
-- Implement `btcpunchd` in Rust.
+- Implement `natcatd` in Rust.
 - Add config parsing, identity key loading, rendezvous connection, TCP mapping
   probe, synchronized punch loop, and Core fd handoff.
 - Log structured diagnostics for all punch outcomes.

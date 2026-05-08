@@ -1,6 +1,6 @@
-# btcpunch
+# natcat
 
-`btcpunch` is a small TCP hole-punching prototype. It can probe the public UDP
+`natcat` is a small TCP hole-punching prototype. It can probe the public UDP
 mapping with STUN, prints the endpoint to share manually, and then tries to
 establish a direct TCP connection with a peer whose endpoint you already know.
 
@@ -24,24 +24,24 @@ NixOS Container -> NixOS host -> router NAT/firewall -> Obscura VPN -> WAN
 Probe each peer's public mapping:
 
 ```sh
-./client.py stun
+./natcat.py stun
 ```
 
 Copy the printed `HOST:PORT` value from each side, then start both peers with
 the other's endpoint:
 
 ```sh
-./client.py peer BOB_PUBLIC_IP:PORT
-./client.py peer ALICE_PUBLIC_IP:PORT
+./natcat.py peer BOB_PUBLIC_IP:PORT
+./natcat.py peer ALICE_PUBLIC_IP:PORT
 ```
 
-After the TCP connection is established, type into either client or pipe data
-through stdin.
+After the TCP connection is established, type into either natcat instance or
+pipe data through stdin.
 
 For example, send a PSBT file to a peer:
 
 ```sh
-cat example.psbt | ./client.py peer 203.0.113.10:50000
+cat example.psbt | ./natcat.py peer 203.0.113.10:50000
 ```
 
 ## Useful Commands
@@ -49,13 +49,13 @@ cat example.psbt | ./client.py peer 203.0.113.10:50000
 Probe the public UDP mapping for a local bind address:
 
 ```sh
-./client.py stun --bind 0.0.0.0:50000
+./natcat.py stun --bind 0.0.0.0:50000
 ```
 
 Bind the peer to a different local UDP/TCP port:
 
 ```sh
-./client.py peer --bind 0.0.0.0:50001 PEER_PUBLIC_IP:PORT
+./natcat.py peer --bind 0.0.0.0:50001 PEER_PUBLIC_IP:PORT
 ```
 
 Use `--help` for the full option list.
