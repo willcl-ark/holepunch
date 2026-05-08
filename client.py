@@ -6,10 +6,10 @@
 
 Manual flow:
 
-    client.py peer
-    # Copy and share the printed STUN endpoint, then run both peers with --peer:
-    client.py peer --peer BOB_PUBLIC_IP:PORT
-    client.py peer --peer ALICE_PUBLIC_IP:PORT
+    client.py stun
+    # Copy and share the printed STUN endpoint, then run both peers with it:
+    client.py peer BOB_PUBLIC_IP:PORT
+    client.py peer ALICE_PUBLIC_IP:PORT
 
 Once the TCP connection is established, lines typed on stdin are sent to the
 peer and displayed on the other side.
@@ -58,23 +58,6 @@ def run_stun(args: argparse.Namespace) -> int:
     return 0
 
 
-def run_peer_stun_probes(
-    sock: socket.socket, server_texts: list[str], timeout: float, tcp_port: int
-) -> None:
-    for server_text in server_texts:
-        server = resolve_endpoint(server_text, sock.family)
-        try:
-            mapped = stun_binding(sock, server, timeout)
-        except socket.timeout:
-            log_event("UDP STUN", f"{server_text} timed out")
-            continue
-        except OSError as err:
-            log_event("UDP STUN", f"{server_text} failed: {err}")
-            continue
-        log_event("UDP STUN", f"{server_text} mapped us as {mapped[0]}:{mapped[1]}")
-        log_event("TCP manual", f"share with peer: --peer {mapped[0]}:{tcp_port}")
-
-
 def complete_connection(puncher: TcpPuncher, candidate: TcpCandidate) -> None:
     puncher.adopt_connection(candidate)
 
@@ -84,31 +67,14 @@ def run_peer(args: argparse.Namespace) -> int:
     control_sock.setblocking(False)
     local_addr = control_sock.getsockname()
     start_at = time.monotonic() + args.start_delay
-    peer = (
-        resolve_endpoint(args.peer, control_sock.family, socket.SOCK_STREAM)
-        if args.peer
-        else None
-    )
+    peer = resolve_endpoint(args.peer, control_sock.family, socket.SOCK_STREAM)
     puncher = TcpPuncher(local_addr, args.interval, start_at, log_event)
-    if peer is not None:
-        puncher.set_peer(peer, start_at)
+    puncher.set_peer(peer, start_at)
 
     log_event("bind", f"UDP STUN and TCP punch port {short_addr(local_addr)}")
     assert puncher.listener is not None
     log_event("TCP listen", f"opened on {socket_addr(puncher.listener)}")
-
-    stun_servers = (
-        args.stun if args.stun else ([] if args.skip_stun else [DEFAULT_STUN])
-    )
-    run_peer_stun_probes(control_sock, stun_servers, args.timeout, puncher.tcp_port)
-
-    if peer is not None:
-        log_event("TCP manual", f"peer endpoint {short_addr(peer)}")
-    else:
-        log_event(
-            "TCP listen",
-            "waiting for inbound connections; rerun with --peer HOST:PORT to punch",
-        )
+    log_event("TCP manual", f"peer endpoint {short_addr(peer)}")
 
     end_at = time.monotonic() + args.duration if args.duration > 0 else None
     read_stdin = True
@@ -212,25 +178,12 @@ def build_parser() -> argparse.ArgumentParser:
     stun_parser.set_defaults(func=run_stun)
 
     peer_parser = subparsers.add_parser("peer", help="run a TCP hole-punch peer")
+    peer_parser.add_argument(
+        "peer",
+        metavar="HOST:PORT",
+        help="peer TCP endpoint",
+    )
     add_bind_arg(peer_parser, DEFAULT_BIND, "local UDP STUN and TCP punch endpoint")
-    peer_parser.add_argument("--peer", help="peer TCP endpoint host:port")
-    peer_parser.add_argument(
-        "--stun",
-        action="append",
-        default=[],
-        help="STUN UDP server host:port",
-    )
-    peer_parser.add_argument(
-        "--skip-stun",
-        action="store_true",
-        help="do not run the default STUN probe",
-    )
-    peer_parser.add_argument(
-        "--timeout",
-        type=float,
-        default=2.0,
-        help="STUN response timeout in seconds",
-    )
     peer_parser.add_argument(
         "--interval",
         type=float,

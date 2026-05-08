@@ -21,19 +21,18 @@ NixOS Container -> NixOS host -> router NAT/firewall -> Obscura VPN -> WAN
 
 ## Basic Usage
 
-Start both peers without `--peer` to print the endpoint each side should share:
+Probe each peer's public mapping:
 
 ```sh
-python3 client.py peer
-python3 client.py peer
+./client.py stun
 ```
 
-Copy the printed `--peer HOST:PORT` value from each side, then restart both
-peers with the other's endpoint:
+Copy the printed `HOST:PORT` value from each side, then start both peers with
+the other's endpoint:
 
 ```sh
-python3 client.py peer --peer BOB_PUBLIC_IP:PORT
-python3 client.py peer --peer ALICE_PUBLIC_IP:PORT
+./client.py peer BOB_PUBLIC_IP:PORT
+./client.py peer ALICE_PUBLIC_IP:PORT
 ```
 
 After the TCP connection is established, type chat lines into either client.
@@ -43,19 +42,19 @@ After the TCP connection is established, type chat lines into either client.
 Probe the public UDP mapping for a local bind address:
 
 ```sh
-python3 client.py stun --bind 0.0.0.0:50000
+./client.py stun --bind 0.0.0.0:50000
 ```
 
 Bind the peer to a different local UDP/TCP port:
 
 ```sh
-python3 client.py peer --bind 0.0.0.0:50001
+./client.py peer --bind 0.0.0.0:50001 PEER_PUBLIC_IP:PORT
 ```
 
 Run a peer for a fixed duration:
 
 ```sh
-python3 client.py peer --duration 60
+./client.py peer --duration 60 PEER_PUBLIC_IP:PORT
 ```
 
 Use `--help` for the full option list.
