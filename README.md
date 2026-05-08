@@ -38,6 +38,12 @@ the other's endpoint:
 After the TCP connection is established, type into either client or pipe data
 through stdin.
 
+For example, send a PSBT file to a peer:
+
+```sh
+cat example.psbt | ./client.py peer 203.0.113.10:50000
+```
+
 ## Useful Commands
 
 Probe the public UDP mapping for a local bind address:
