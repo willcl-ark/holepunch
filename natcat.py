@@ -60,9 +60,23 @@ def run_peer(args: argparse.Namespace) -> int:
     log_event("TCP manual", f"peer endpoint {short_addr(peer)}")
 
     read_stdin = True
+    pending_output = bytearray()
 
     def reset_connection(reason: str) -> None:
+        pending_output.clear()
         puncher.reset_connection(reason)
+
+    def flush_pending_output(tcp_sock: socket.socket) -> None:
+        if not pending_output:
+            return
+        try:
+            sent = tcp_sock.send(pending_output)
+        except BlockingIOError:
+            return
+        except OSError as err:
+            reset_connection(f"send failed: {err}")
+            return
+        del pending_output[:sent]
 
     while True:
         now = time.monotonic()
@@ -73,15 +87,21 @@ def run_peer(args: argparse.Namespace) -> int:
 
         inputs: list[socket.socket | int] = []
         inputs.extend(puncher.read_sockets())
-        if read_stdin and puncher.established is not None:
+        if read_stdin and puncher.established is not None and not pending_output:
             inputs.append(sys.stdin.fileno())
         outputs = puncher.write_sockets()
+        if puncher.established is not None and pending_output:
+            outputs.append(puncher.established)
         readable, writable, _errored = select.select(inputs, outputs, [], timeout)
 
         if puncher.connector is not None and puncher.connector in writable:
             candidate = puncher.connector_ready(time.monotonic())
             if candidate is not None:
                 puncher.adopt_connection(candidate)
+
+        tcp_sock = puncher.established
+        if tcp_sock is not None and tcp_sock in writable:
+            flush_pending_output(tcp_sock)
 
         if not readable:
             continue
@@ -94,10 +114,8 @@ def run_peer(args: argparse.Namespace) -> int:
             else:
                 tcp_sock = puncher.established
                 if tcp_sock is not None:
-                    try:
-                        tcp_sock.sendall(data)
-                    except OSError as err:
-                        reset_connection(f"send failed: {err}")
+                    pending_output.extend(data)
+                    flush_pending_output(tcp_sock)
             readable.remove(stdin_fd)
 
         listener = puncher.listener
