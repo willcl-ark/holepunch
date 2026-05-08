@@ -31,11 +31,6 @@ def close_socket(sock: Optional[socket.socket]) -> None:
         sock.close()
 
 
-def tcp_verify_command(sock: socket.socket) -> str:
-    local_port = sock.getsockname()[1]
-    return f"ss -tnp state established '( sport = :{local_port} or dport = :{local_port} )'"
-
-
 @dataclass
 class TcpCandidate:
     sock: socket.socket
@@ -177,7 +172,6 @@ class TcpPuncher:
                 "TCP holepunch",
                 f"connected to {short_addr(candidate.peer)}",
             )
-        self.demo_event("TCP verify", tcp_verify_command(candidate.sock))
         self.connected_once = True
 
     def _start_connect(self, now: float) -> None:
