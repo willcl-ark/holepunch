@@ -71,7 +71,8 @@ def run_peer(args: argparse.Namespace) -> int:
 
         timeout = 0.1
 
-        inputs: list[socket.socket | int] = puncher.read_sockets()
+        inputs: list[socket.socket | int] = []
+        inputs.extend(puncher.read_sockets())
         if read_stdin and puncher.established is not None:
             inputs.append(sys.stdin.fileno())
         outputs = puncher.write_sockets()
