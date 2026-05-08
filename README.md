@@ -1,69 +1,30 @@
 # btcpunch
 
-`btcpunch` is a small TCP hole-punching prototype. It uses UDP for discovery
-and coordination, then tries to establish a direct TCP connection between two
-peers. Once the TCP connection is up, each line typed into one peer is sent to
-the other peer.
+`btcpunch` is a small TCP hole-punching prototype. It can probe the public UDP
+mapping with STUN, prints the endpoint to share manually, and then tries to
+establish a direct TCP connection with a peer whose endpoint you already know.
 
-The prototype has two main parts:
-
-- `client.py`: runs a peer, probes its public UDP mapping with STUN, joins the
-  rendezvous lobby, and attempts the TCP punch.
-- `rendezvous.py`: runs a tiny UDP lobby and mailbox server. It records peers
-  by their observed UDP address and advertised TCP port, assigns endpoint ids,
-  and relays invite/accept messages.
-
-The hardcoded lobby name is `btcpunch`.
+Once the TCP connection is up, each line typed into one peer is sent to the
+other peer.
 
 ## Basic Usage
 
-Start a rendezvous server on a public host:
-
-```sh
-python3 rendezvous.py --bind 0.0.0.0:3479
-```
-
-Run two peers. By default they use `stun.fish.foo:3479` as the rendezvous
-server, so pass `--rendezvous` if you are using your own server:
-
-```sh
-python3 client.py peer --name alice --rendezvous RENDEZVOUS_IP:3479
-python3 client.py peer --name bob --rendezvous RENDEZVOUS_IP:3479
-```
-
-Each peer prints its endpoint id and the ids of peers it sees in the lobby.
-Invite a peer by typing this into one client:
-
-```text
-/connect ENDPOINT_ID
-```
-
-For quick testing, one side can invite the first peer it sees:
-
-```sh
-python3 client.py peer --name alice --rendezvous RENDEZVOUS_IP:3479 --auto-connect
-python3 client.py peer --name bob --rendezvous RENDEZVOUS_IP:3479
-```
-
-After the TCP connection is established, type chat lines into either client.
-
-## Manual Endpoint Exchange
-
-You can manually exchange the public endpoint printed by the STUN probe instead
-of using the rendezvous lobby to find peers:
+Start both peers without `--peer` to print the endpoint each side should share:
 
 ```sh
 python3 client.py peer --name alice
 python3 client.py peer --name bob
 ```
 
-Copy the `--peer HOST:PORT` value printed by each side, then restart both
+Copy the printed `--peer HOST:PORT` value from each side, then restart both
 peers with the other's endpoint:
 
 ```sh
 python3 client.py peer --name alice --peer BOB_PUBLIC_IP:PORT
 python3 client.py peer --name bob --peer ALICE_PUBLIC_IP:PORT
 ```
+
+After the TCP connection is established, type chat lines into either client.
 
 ## Useful Commands
 
@@ -79,11 +40,10 @@ Bind the peer to a different local UDP/TCP port:
 python3 client.py peer --bind 0.0.0.0:50001 --name alice
 ```
 
-Run either process for a fixed duration:
+Run a peer for a fixed duration:
 
 ```sh
-python3 rendezvous.py --duration 60
 python3 client.py peer --duration 60
 ```
 
-Use `--help` on either script for the full option list.
+Use `--help` for the full option list.
