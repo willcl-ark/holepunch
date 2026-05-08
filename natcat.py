@@ -61,9 +61,12 @@ def run_peer(args: argparse.Namespace) -> int:
 
     read_stdin = True
     pending_output = bytearray()
+    write_shutdown = False
 
     def reset_connection(reason: str) -> None:
+        nonlocal write_shutdown
         pending_output.clear()
+        write_shutdown = False
         puncher.reset_connection(reason)
 
     def flush_pending_output(tcp_sock: socket.socket) -> None:
@@ -77,6 +80,18 @@ def run_peer(args: argparse.Namespace) -> int:
             reset_connection(f"send failed: {err}")
             return
         del pending_output[:sent]
+
+    def shutdown_write_if_done() -> None:
+        nonlocal write_shutdown
+        tcp_sock = puncher.established
+        if read_stdin or pending_output or write_shutdown or tcp_sock is None:
+            return
+        try:
+            tcp_sock.shutdown(socket.SHUT_WR)
+        except OSError as err:
+            reset_connection(f"shutdown failed: {err}")
+            return
+        write_shutdown = True
 
     while True:
         now = time.monotonic()
@@ -98,10 +113,12 @@ def run_peer(args: argparse.Namespace) -> int:
             candidate = puncher.connector_ready(time.monotonic())
             if candidate is not None:
                 puncher.adopt_connection(candidate)
+                shutdown_write_if_done()
 
         tcp_sock = puncher.established
         if tcp_sock is not None and tcp_sock in writable:
             flush_pending_output(tcp_sock)
+            shutdown_write_if_done()
 
         if not readable:
             continue
@@ -111,11 +128,13 @@ def run_peer(args: argparse.Namespace) -> int:
             data = os.read(stdin_fd, 4096)
             if data == b"":
                 read_stdin = False
+                shutdown_write_if_done()
             else:
                 tcp_sock = puncher.established
                 if tcp_sock is not None:
                     pending_output.extend(data)
                     flush_pending_output(tcp_sock)
+                    shutdown_write_if_done()
             readable.remove(stdin_fd)
 
         listener = puncher.listener
@@ -124,6 +143,7 @@ def run_peer(args: argparse.Namespace) -> int:
             candidate = puncher.accept_ready()
             if candidate is not None:
                 puncher.adopt_connection(candidate)
+                shutdown_write_if_done()
 
         tcp_sock = puncher.established
         if tcp_sock is not None and tcp_sock in readable:
