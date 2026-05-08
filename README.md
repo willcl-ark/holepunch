@@ -51,10 +51,4 @@ Bind the peer to a different local UDP/TCP port:
 ./client.py peer --bind 0.0.0.0:50001 PEER_PUBLIC_IP:PORT
 ```
 
-Run a peer for a fixed duration:
-
-```sh
-./client.py peer --duration 60 PEER_PUBLIC_IP:PORT
-```
-
 Use `--help` for the full option list.

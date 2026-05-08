@@ -20,6 +20,8 @@ from stun import stun_binding
 
 DEFAULT_BIND = "0.0.0.0:50000"
 DEFAULT_STUN = "stun.fish.foo:3478"
+CONNECT_INTERVAL = 0.25
+STUN_TIMEOUT = 2.0
 
 
 def log(message: str) -> None:
@@ -33,17 +35,16 @@ def log_event(kind: str, message: str) -> None:
 def run_stun(args: argparse.Namespace) -> int:
     sock = make_udp_socket(args.bind)
     log_event("UDP STUN", f"bound {short_addr(sock.getsockname())}")
-    for server_text in args.stun:
-        server = resolve_endpoint(server_text, sock.family)
-        try:
-            mapped = stun_binding(sock, server, args.timeout)
-        except socket.timeout:
-            log_event("UDP STUN", f"{server_text} timed out")
-            continue
-        except OSError as err:
-            log_event("UDP STUN", f"{server_text} failed: {err}")
-            continue
-        log_event("UDP STUN", f"{server_text} mapped us as {mapped[0]}:{mapped[1]}")
+    server = resolve_endpoint(DEFAULT_STUN, sock.family)
+    try:
+        mapped = stun_binding(sock, server, STUN_TIMEOUT)
+    except socket.timeout:
+        log_event("UDP STUN", f"{DEFAULT_STUN} timed out")
+        return 1
+    except OSError as err:
+        log_event("UDP STUN", f"{DEFAULT_STUN} failed: {err}")
+        return 1
+    log_event("UDP STUN", f"{DEFAULT_STUN} mapped us as {mapped[0]}:{mapped[1]}")
     return 0
 
 
@@ -55,9 +56,9 @@ def run_peer(args: argparse.Namespace) -> int:
     control_sock = make_udp_socket(args.bind)
     control_sock.setblocking(False)
     local_addr = control_sock.getsockname()
-    start_at = time.monotonic() + args.start_delay
+    start_at = time.monotonic()
     peer = resolve_endpoint(args.peer, control_sock.family, socket.SOCK_STREAM)
-    puncher = TcpPuncher(local_addr, args.interval, start_at, log_event)
+    puncher = TcpPuncher(local_addr, CONNECT_INTERVAL, start_at, log_event)
     puncher.set_peer(peer, start_at)
 
     log_event("bind", f"UDP STUN and TCP punch port {short_addr(local_addr)}")
@@ -65,7 +66,6 @@ def run_peer(args: argparse.Namespace) -> int:
     log_event("TCP listen", f"opened on {socket_addr(puncher.listener)}")
     log_event("TCP manual", f"peer endpoint {short_addr(peer)}")
 
-    end_at = time.monotonic() + args.duration if args.duration > 0 else None
     read_stdin = True
 
     def reset_connection(reason: str) -> None:
@@ -73,14 +73,10 @@ def run_peer(args: argparse.Namespace) -> int:
 
     while True:
         now = time.monotonic()
-        if end_at is not None and now >= end_at:
-            return 0
 
         puncher.tick(now)
 
         timeout = 0.1
-        if end_at is not None:
-            timeout = max(0.0, min(timeout, end_at - now))
 
         inputs: list[socket.socket | TextIO] = puncher.read_sockets()
         if read_stdin:
@@ -145,52 +141,18 @@ def add_bind_arg(parser: argparse.ArgumentParser, default: str, help_text: str) 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    subparsers = parser.add_subparsers(dest="command")
+    subparsers = parser.add_subparsers(required=True)
 
-    stun_parser = subparsers.add_parser(
-        "stun",
-        help="send STUN binding requests and print the mapped endpoint",
-    )
+    stun_parser = subparsers.add_parser("stun")
     add_bind_arg(stun_parser, DEFAULT_BIND, "local UDP bind endpoint")
-    stun_parser.add_argument(
-        "--stun",
-        action="append",
-        default=[DEFAULT_STUN],
-        help="STUN UDP server host:port",
-    )
-    stun_parser.add_argument(
-        "--timeout",
-        type=float,
-        default=2.0,
-        help="STUN response timeout in seconds",
-    )
     stun_parser.set_defaults(func=run_stun)
 
-    peer_parser = subparsers.add_parser("peer", help="run a TCP hole-punch peer")
+    peer_parser = subparsers.add_parser("peer")
     peer_parser.add_argument(
         "peer",
         metavar="HOST:PORT",
-        help="peer TCP endpoint",
     )
     add_bind_arg(peer_parser, DEFAULT_BIND, "local UDP STUN and TCP punch endpoint")
-    peer_parser.add_argument(
-        "--interval",
-        type=float,
-        default=0.25,
-        help="seconds between punch attempts",
-    )
-    peer_parser.add_argument(
-        "--start-delay",
-        type=float,
-        default=0.0,
-        help="delay before punch attempts",
-    )
-    peer_parser.add_argument(
-        "--duration",
-        type=float,
-        default=0.0,
-        help="exit after this many seconds; 0 means run forever",
-    )
     peer_parser.set_defaults(func=run_peer)
 
     return parser
@@ -199,9 +161,6 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
-    if not hasattr(args, "func"):
-        parser.print_help()
-        return 2
 
     try:
         return args.func(args)
